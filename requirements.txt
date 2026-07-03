@@ -1,0 +1,24 @@
+# Ollama API клиент
+ollama==0.4.7
+
+# Переменные окружения
+python-dotenv==1.0.1
+
+# Веб-сервер и WebSocket
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+
+# HTTP запросы (для GitHub API)
+requests==2.32.3
+
+# Работа с аудио
+numpy==2.0.2
+sounddevice==0.5.1
+pydub==0.25.1
+
+# Распознавание речи (STT)
+faster-whisper==1.1.0
+
+# Клонирование голоса (TTS)
+TTS==0.22.0
