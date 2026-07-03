@@ -1,0 +1,6 @@
+.env
+venv/
+*.db
+__pycache__/
+voice/*.wav
+temp_output.wav
