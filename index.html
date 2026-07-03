@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Koren AI Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2F4860 0%, #1a2a3a 100%);
+            color: #FFFFFF;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 100vh;
+            padding: 40px 20px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        /* Центральная часть с картинкой */
+        .center-section {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .avatar-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .avatar {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            object-fit: cover;
+            position: relative;
+            z-index: 2;
+            border: 3px solid #7DA7D9;
+            transition: all 0.3s ease;
+        }
+
+        .glow {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(125, 167, 217, 0.4) 0%, transparent 70%);
+            z-index: 1;
+            transition: all 0.1s ease;
+            opacity: 0.3;
+        }
+
+        .glow.active {
+            opacity: 1;
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        /* Нижняя часть с текстом */
+        .text-section {
+            width: 100%;
+            min-height: 150px;
+            padding: 30px;
+            background: rgba(47, 72, 96, 0.6);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(125, 167, 217, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .user-text {
+            color: #DCEEFC;
+            font-size: 16px;
+            margin-bottom: 15px;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .ai-text {
+            color: #FFFFFF;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+
+        .sentence {
+            display: inline;
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* Индикатор статуса */
+        .status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            background: rgba(47, 72, 96, 0.8);
+            border-radius: 20px;
+            font-size: 14px;
+            color: #7DA7D9;
+            border: 1px solid rgba(125, 167, 217, 0.3);
+        }
+
+        .status.connected {
+            color: #4CAF50;
+            border-color: rgba(76, 175, 80, 0.3);
+        }
+
+        .status.listening {
+            color: #FF7CC9;
+            border-color: rgba(255, 124, 201, 0.3);
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Загрузочный экран */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #2F4860;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-text {
+            color: #7DA7D9;
+            font-size: 24px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- Загрузочный экран -->
+    <div class="loading" id="loading">
+        <div class="loading-text">Initializing Koren...</div>
+    </div>
+
+    <!-- Статус подключения -->
+    <div class="status" id="status">Connecting...</div>
+
+    <div class="container">
+        <!-- Центральная часть с аватаром -->
+        <div class="center-section">
+            <div class="avatar-container">
+                <div class="glow" id="glow"></div>
+                <img src="koren.png" alt="Koren" class="avatar" id="avatar">
+            </div>
+        </div>
+
+        <!-- Нижняя часть с текстом -->
+        <div class="text-section">
+            <div class="user-text" id="userText"></div>
+            <div class="ai-text" id="aiText"></div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket подключение
+        const ws = new WebSocket(`ws://${window.location.hostname}:8000/ws`);
+        const statusEl = document.getElementById('status');
+        const userTextEl = document.getElementById('userText');
+        const aiTextEl = document.getElementById('aiText');
+        const glowEl = document.getElementById('glow');
+        const loadingEl = document.getElementById('loading');
+
+        let currentAudioLevel = 0;
+        let glowAnimation = null;
+
+        // Подключение WebSocket
+        ws.onopen = () => {
+            console.log('Connected to Koren');
+            statusEl.textContent = 'Connected';
+            statusEl.classList.add('connected');
+            
+            // Скрываем загрузочный экран
+            setTimeout(() => {
+                loadingEl.classList.add('hidden');
+            }, 500);
+        };
+
+        ws.onclose = () => {
+            console.log('Disconnected from Koren');
+            statusEl.textContent = 'Disconnected';
+            statusEl.classList.remove('connected');
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            statusEl.textContent = 'Error';
+        };
+
+        // Обработка сообщений от сервера
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            
+            switch(data.type) {
+                case 'user_text':
+                    userTextEl.textContent = `You: ${data.text}`;
+                    statusEl.textContent = 'Processing...';
+                    statusEl.classList.remove('listening');
+                    break;
+                
+                case 'ai_text':
+                    displayTextWithAnimation(data.text);
+                    break;
+                
+                case 'audio_level':
+                    currentAudioLevel = data.level;
+                    updateGlow(currentAudioLevel);
+                    break;
+                
+                case 'status':
+                    if (data.status === 'listening') {
+                        statusEl.textContent = 'Listening...';
+                        statusEl.classList.add('listening');
+                    }
+                    break;
+            }
+        };
+
+        // Анимация появления текста по предложениям
+        function displayTextWithAnimation(text) {
+            aiTextEl.innerHTML = '';
+            
+            // Разбиваем текст на предложения
+            const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+            
+            sentences.forEach((sentence, index) => {
+                setTimeout(() => {
+                    const span = document.createElement('span');
+                    span.className = 'sentence';
+                    span.textContent = sentence.trim() + ' ';
+                    span.style.animationDelay = `${index * 0.1}s`;
+                    aiTextEl.appendChild(span);
+                }, index * 300);
+            });
+        }
+
+        // Обновление свечения на основе уровня громкости
+        function updateGlow(level) {
+            const scale = 1 + (level * 0.5); // Масштаб от 1 до 1.5
+            const opacity = 0.3 + (level * 0.7); // Прозрачность от 0.3 до 1
+            
+            glowEl.style.transform = `scale(${scale})`;
+            glowEl.style.opacity = opacity;
+            
+            // Добавляем цвет свечения на основе уровня
+            if (level > 0.5) {
+                glowEl.style.background = `radial-gradient(circle, 
+                    rgba(255, 124, 201, ${level * 0.6}) 0%, 
+                    rgba(125, 167, 217, ${level * 0.4}) 50%, 
+                    transparent 70%)`;
+            } else {
+                glowEl.style.background = `radial-gradient(circle, 
+                    rgba(125, 167, 217, ${level * 0.6}) 0%, 
+                    transparent 70%)`;
+            }
+        }
+
+        // Плавное затухание свечения когда бот не говорит
+        setInterval(() => {
+            if (currentAudioLevel < 0.1) {
+                const currentScale = parseFloat(glowEl.style.transform.replace('scale(', '').replace(')', '')) || 1;
+                if (currentScale > 1) {
+                    glowEl.style.transform = `scale(${currentScale - 0.05})`;
+                    glowEl.style.opacity = Math.max(0.3, parseFloat(glowEl.style.opacity) - 0.05);
+                }
+            }
+        }, 50);
+    </script>
+</body>
+</html>
